@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en-US">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<title>WIN</title>
+		<meta content="IE=edge" http-equiv="x-ua-compatible"/>
+		<meta content="initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" name="viewport"/>
+		<meta content="yes" name="apple-mobile-web-app-capable"/>
+		<meta content="yes" name="apple-touch-fullscreen"/>
+
+		<!-- Fonts -->
+		<link href='https://fonts.googleapis.com/css?family=Raleway:300,400,700' rel='stylesheet' type='text/css'/>
+
+		<!-- Icons -->
+		<link href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css" media="all" rel="stylesheet" type="text/css"/>
+
+		<!-- Styles -->
+		<link href="css/keyframes.css" rel="stylesheet" type="text/css"/>
+		<link href="css/materialize.min.css" rel="stylesheet" type="text/css"/>
+		<link href="css/swiper.css" rel="stylesheet" type="text/css"/>
+		<link href="css/swipebox.min.css" rel="stylesheet" type="text/css"/>
+		<link href="css/style.css" rel="stylesheet" type="text/css"/>
+		
+		<script>
+			var id_usuario;
+			var nombre;
+			
+			document.addEventListener("deviceready", onDeviceReady, false);
+			
+
+			function onDeviceReady() {
+				//GUARDAR PARA AGREGAR EL BOTON LOGOUT
+				//facebookConnectPlugin.logout(function (status){console.log(status);});
+				
+				document.addEventListener("backbutton", salir, false);
+
+				/* En caso de un cambio de dispositivo, obtener nuevamente el ID */
+				window.plugins.OneSignal.getIds(function(ids) { //Obtener el ID del usuario y su dispositivo, único
+					localStorage.setItem("player",ids.userId);	// Se guarda en una variable para luego guardar en base de datos
+				});
+				
+			}
+			
+			function salir(){
+				//var t = confirm("OK!");
+
+				navigator.app.exitApp();
+			}
+		
+			function entrarConFb(){
+			
+				facebookConnectPlugin.getLoginStatus(  //Obtener el estado de inicio de sesión
+					loguear, 
+					function getLoginError(error){  
+					console.error(error);
+				});	
+			}
+			
+			function loguear(status){ //Recordar que se deben capturar todos los casos 
+
+				if(status.status === 'connected'){	//Si está conectado a FB y a la aplicación
+
+					facebookConnectPlugin.api("me/?fields=id,name",["public_profile","email"], 
+							onSuccess
+							,function onError (error) {
+								console.error("Error: ", error);
+							}
+						);			
+					
+					function onSuccess (result) { //Se inicia facebook correctamente
+						localStorage.setItem("id_usuario", result.id); //Guardar localmente los datos del usuario
+						localStorage.setItem("nombre", result.name);
+					}
+					
+					var datos = {id_usuario: localStorage.id_usuario, player: localStorage.player};
+
+					$.post("http://afrodita.inf.ucv.cl/~emergencias/pin/actualizar.php",datos) //Se envían los datos al servidor
+					
+					.done(function(){
+						console.log("OK ACTUALIZAR");
+						location.href="home.html";  //Logged OK
+					})
+					
+					.fail(function(){
+						console.log("FALLO ACTUALIZAR");
+					});
+				}
+				
+				if(status.status === 'not_authorized'){		//Si está conectado a FB, pero no a la aplicación
+				
+					facebookConnectPlugin.login(["public_profile","email"],  //Loguear en la aplicación
+						fbLoginSuccess,
+						function loginError (error) {
+							console.error(error)
+						}
+					);
+				}
+				if(status.status === 'unknown'){ //Si no está conectado ni a FB ni a la aplicación (y otros casos)
+				
+					facebookConnectPlugin.login(["public_profile","email"], //Loguear en la aplicación
+						fbLoginSuccess, 
+						function loginError (error) {
+							console.error(error)
+						}
+					);
+				}
+			}
+				
+			function fbLoginSuccess(userData) {  // Una vez conectado se obtienen los datos del usuario
+				console.log(userData.status);
+				
+				facebookConnectPlugin.api("me/?fields=id,name,email",["public_profile","email"],
+					function onSuccess (result) {
+						console.log("Resultado registro: ", result);
+						
+						localStorage.setItem("id_usuario", result.id); //Guardar localmente los datos del usuario
+						localStorage.setItem("nombre", result.name);
+
+						registrarUsuario(localStorage.id_usuario,result.email,result.name); //Se procede a registrar en la BDD
+
+					}, 	function onError (error) {
+						console.error("Error en registro: ", error);
+					}
+				);
+			}	
+			
+			function registrarUsuario(idFacebook,email,nombre){
+			
+				var datos = {idFacebook: idFacebook,email: email,nombre: nombre, player: localStorage.player};
+				
+				$.post("http://afrodita.inf.ucv.cl/~emergencias/pin/registro.php",datos,respuesta) //Se envían los datos al servidor
+				
+				.fail(function(){
+					cordova.plugins.notification.local.schedule({
+								id: 0, //Una notificacion que se reemplaza
+								text: "Error en el registro"
+					});
+				});
+				
+				function respuesta(validar){
+					console.log(validar);
+					if(validar == "registrado"){
+								
+						cordova.plugins.notification.local.schedule({
+									id: 0, //Una notificacion que se reemplaza
+									text: "Registrado correctamente!"
+						});
+						location.href="home.html";
+					}
+					if(validar == "ya_existe"){
+						location.href="home.html";
+					}
+				}
+			}
+		</script>
+	</head>
+	
+	<body>
+		<div id="main"> 
+			<!-- Main Container -->
+			<!-- Page Contents -->
+			<div id="content" class="main animated fadein">
+				<div class="fullscreen bg-4 valign-wrapper animated fadeinright">
+					<div class="opacity-overlay"></div>
+						<div class="valign center-align w-100">
+							<h1 class="white-text m-0"><strong>WIN</strong></h1>
+							<h5 class="white-text">¡HOLA, BIENVENIDO!</h5>
+							<br><br><br><br>
+							<a class="waves-effect waves-light btn-large primary-color block m-20 animated bouncein delay-4" href="registro.html">Crea tu cuenta AQUÍ</a>
+							<a class="waves-effect waves-light btn-large light-blue darken-4 block m-20 animated bouncein delay-5" href="menu_usuario.html" <!--onclick="entrarConFb()"--><i class="ion-social-facebook left"></i> Regístrate con facebook</a>
+							<!--<span class="block white-text">Have an account? <a class="accent-text" href="login.html">Log In</a></span>-->
+						</div>
+				</div>
+			</div>
+		<!-- End of Page Contents -->
+		</div>
+	
+		<!-- End of Main Container -->
+		<script src="js/jquery-1.12.2.js"></script>
+		<script src="js/modernizr.js"></script>
+		<script src="js/jquery.swipebox.min.js"></script>
+		<script src="js/materialize.min.js"></script>
+		<script src="js/swiper.min.js"></script>
+		<script src="js/jquery.mixitup.min.js"></script>
+		<script src="js/masonry.min.js"></script>
+		<script src="js/chart.min.js"></script>
+		<script src="js/functions.js"></script>
+	</body>
+</html>
